@@ -4,17 +4,16 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
 function Map({ data }) {
-    const [activeType, setActiveType] = useState(null); // null | 'schools' | 'kindergartens' | 'parks' | 'playgrounds'
+    const [activeType, setActiveType] = useState(null);
     const [extraMarkers, setExtraMarkers] = useState([]);
+    const [preloadStatus, setPreloadStatus] = useState({});
 
-    // Унікальний ключ кешу для району + типу
     const getCacheKey = (type) => {
         if (!data?.districts?.[0]) return null;
         const district = data.districts[0];
         return `map_cache_${district.name.replace(/\s+/g, '_')}_${type}`;
     };
 
-    // Отримати дані з кешу
     const getCachedMarkers = (type) => {
         const key = getCacheKey(type);
         if (!key) return null;
@@ -24,7 +23,7 @@ function Map({ data }) {
 
         try {
             const parsed = JSON.parse(cached);
-            const ageInDays = (Date.now() - parsed.timestamp) / (86400000); // 1000*60*60*24
+            const ageInDays = (Date.now() - parsed.timestamp) / (86400000);
 
             if (ageInDays > 30) {
                 console.log(`🗑️ Кеш застарів (${ageInDays.toFixed(1)} днів) — видаляємо: ${key}`);
@@ -41,7 +40,6 @@ function Map({ data }) {
         }
     };
 
-    // Зберегти в кеш
     const setCachedMarkers = (type, markers) => {
         const key = getCacheKey(type);
         if (!key) return;
@@ -53,6 +51,87 @@ function Map({ data }) {
         localStorage.setItem(key, JSON.stringify(cacheData));
         console.log(`💾 Збережено в кеш: ${key} → ${markers.length} міток`);
     };
+
+    // Функція завантаження міток для конкретного типу
+    const fetchMarkersForType = async (type, district) => {
+        const tagConfig = {
+            schools:       { key: 'amenity',  value: 'school' },
+            kindergartens: { key: 'amenity',  value: 'kindergarten' },
+            parks:         { key: 'leisure',  value: 'park' },
+            playgrounds:   { key: 'leisure',  value: 'playground' }
+        };
+
+        const config = tagConfig[type];
+        if (!config) return;
+
+        const query = `
+          [out:json][timeout:30];
+          (
+            node["${config.key}"="${config.value}"](around:2200,${district.lat},${district.lon});
+            way["${config.key}"="${config.value}"](around:2200,${district.lat},${district.lon});
+            relation["${config.key}"="${config.value}"](around:2200,${district.lat},${district.lon});
+          );
+          out center;
+        `;
+
+        try {
+            const response = await fetch('https://overpass.kumi.systems/api/interpreter', {
+                method: 'POST',
+                body: query
+            });
+
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            const res = await response.json();
+            const markers = res.elements
+                .filter(el => el.lat || (el.center && el.center.lat))
+                .map(el => ({
+                    lat: el.lat || el.center.lat,
+                    lon: el.lon || el.center.lon
+                }));
+
+            console.log(`📍 Preload: ${type} → ${markers.length} міток`);
+            setCachedMarkers(type, markers);
+            return markers;
+        } catch (err) {
+            console.error(`❌ Помилка Overpass (preload ${type}):`, err);
+            return null;
+        }
+    };
+
+    // ПОПЕРЕДНЄ ЗАВАНТАЖЕННЯ при старті
+    useEffect(() => {
+        if (!data?.districts?.[0]) return;
+
+        const district = data.districts[0];
+        const types = ['schools', 'kindergartens', 'parks', 'playgrounds'];
+
+        console.log(`🚀 Попереднє завантаження для "${district.name}"`);
+
+        types.forEach(async (type) => {
+            // Перевіряємо чи є вже в кеші
+            const cached = getCachedMarkers(type);
+
+            if (cached !== null) {
+                console.log(`✅ ${type} вже в кеші`);
+                setPreloadStatus(prev => ({ ...prev, [type]: 'cached' }));
+            } else {
+                console.log(`⏳ Завантаження ${type}...`);
+                setPreloadStatus(prev => ({ ...prev, [type]: 'loading' }));
+
+                // Затримка між запитами щоб не перевантажити API
+                await new Promise(resolve => setTimeout(resolve, 500 * types.indexOf(type)));
+
+                const markers = await fetchMarkersForType(type, district);
+
+                if (markers) {
+                    setPreloadStatus(prev => ({ ...prev, [type]: 'loaded' }));
+                } else {
+                    setPreloadStatus(prev => ({ ...prev, [type]: 'error' }));
+                }
+            }
+        });
+    }, [data]);
 
     // Тогл через кастомну подію
     useEffect(() => {
@@ -72,86 +151,35 @@ function Map({ data }) {
         return () => window.removeEventListener('showMarkers', handleToggle);
     }, [activeType]);
 
-    // Завантаження міток
+    // Відображення активних міток
     useEffect(() => {
         if (!activeType || !data?.districts?.[0]) {
-            if (extraMarkers.length > 0) {
-                console.log('🧹 Очищення міток (немає активного типу)');
-            }
             setExtraMarkers([]);
             return;
         }
 
         const district = data.districts[0];
-        console.log(`🎯 Завантаження міток для "${district.name}" — тип: ${activeType}`);
+        console.log(`🎯 Відображення міток для "${district.name}" — тип: ${activeType}`);
 
-        // Спочатку кеш
+        // Беремо з кешу (вже має бути завантажено)
         const cached = getCachedMarkers(activeType);
         if (cached !== null) {
             setExtraMarkers(cached);
-            return;
-        }
-
-        // Якщо кешу немає — запит до Overpass
-        console.log(`🌐 Запит до Overpass API для ${activeType}`);
-
-        // Правильні теги для кожного типу
-        const tagConfig = {
-            schools:       { key: 'amenity',  value: 'school' },
-            kindergartens: { key: 'amenity',  value: 'kindergarten' },
-            parks:         { key: 'leisure',  value: 'park' },
-            playgrounds:   { key: 'leisure',  value: 'playground' }
-        };
-
-        const config = tagConfig[activeType];
-        if (!config) {
-            console.warn(`Невідомий тип: ${activeType}`);
-            return;
-        }
-
-        const query = `
-          [out:json][timeout:30];
-          (
-            node["${config.key}"="${config.value}"](around:2200,${district.lat},${district.lon});
-            way["${config.key}"="${config.value}"](around:2200,${district.lat},${district.lon});
-            relation["${config.key}"="${config.value}"](around:2200,${district.lat},${district.lon});
-          );
-          out center;
-        `;
-
-        fetch('https://overpass.kumi.systems/api/interpreter', {
-            method: 'POST',
-            body: query
-        })
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.json();
-            })
-            .then(res => {
-                const markers = res.elements
-                    .filter(el => el.lat || (el.center && el.center.lat))
-                    .map(el => ({
-                        lat: el.lat || el.center.lat,
-                        lon: el.lon || el.center.lon
-                    }));
-
-                console.log(`📍 Отримано з API: ${markers.length} міток (${activeType})`);
-                setExtraMarkers(markers);
-                setCachedMarkers(activeType, markers);
-            })
-            .catch(err => {
-                console.error(`❌ Помилка Overpass (${activeType}):`, err);
-                setExtraMarkers([]);
+        } else {
+            // Якщо з якоїсь причини не завантажилось, завантажуємо зараз
+            console.log(`🌐 Додатковий запит до Overpass API для ${activeType}`);
+            fetchMarkersForType(activeType, district).then(markers => {
+                if (markers) setExtraMarkers(markers);
             });
+        }
     }, [activeType, data]);
 
-    // Кольори міток
     const getColor = (type) => {
         switch (type) {
-            case 'schools':       return '#e74c3c'; // червоний
-            case 'kindergartens': return '#3498db'; // синій
-            case 'parks':         return '#2ecc71'; // зелений
-            case 'playgrounds':   return '#f39c12'; // помаранчевий
+            case 'schools':       return '#e74c3c';
+            case 'kindergartens': return '#3498db';
+            case 'parks':         return '#2ecc71';
+            case 'playgrounds':   return '#f39c12';
             default:              return '#95a5a6';
         }
     };
@@ -173,7 +201,6 @@ function Map({ data }) {
                 attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
             />
 
-            {/* Коло та центр району */}
             {data?.districts?.map(district => (
                 <Circle
                     key={district.name}
@@ -200,7 +227,6 @@ function Map({ data }) {
                 </Circle>
             ))}
 
-            {/* Мітки інфраструктури */}
             {extraMarkers.map((marker, i) => (
                 <Marker
                     key={`${activeType}-${i}`}
