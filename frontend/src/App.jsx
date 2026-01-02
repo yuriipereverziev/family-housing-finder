@@ -43,7 +43,7 @@ function App() {
         setSelectedDistrict('');
 
         axios
-            .get(`${API_BASE}/${selectedCity}`)
+            .get(`${API_BASE}/api/districts/${selectedCity}`)
             .then((response) => {
                 const dist = response.data.districts || [];
                 setDistricts(dist);
