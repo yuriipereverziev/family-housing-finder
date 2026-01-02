@@ -11,7 +11,7 @@ const app = express();
    CORS
 ======================= */
 const allowedOrigins = [
-    "http://localhost:5175",
+    "http://localhost:5178",
     "https://family-housing-finder.vercel.app"
 ];
 

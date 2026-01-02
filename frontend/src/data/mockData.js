@@ -30,7 +30,7 @@ export const MOCK_DATA = {
                 }
             },
             {
-                name: "БАМ",
+                name: "Бам",
                 lat: 48.915,
                 lon: 24.735,
                 score: 2.7,
