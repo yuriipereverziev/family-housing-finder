@@ -100,16 +100,21 @@ function Map({ data }) {
     };
 
     // ПОПЕРЕДНЄ ЗАВАНТАЖЕННЯ при старті
+    // Замініть існуючий useEffect для попереднього завантаження на:
     useEffect(() => {
         if (!data?.districts?.[0]) return;
 
         const district = data.districts[0];
+
+        // СКИДАЄМО активний тип при зміні району
+        setActiveType(null);
+        setExtraMarkers([]);
+
         const types = ['schools', 'kindergartens', 'parks', 'playgrounds'];
 
         console.log(`🚀 Попереднє завантаження для "${district.name}"`);
 
         types.forEach(async (type) => {
-            // Перевіряємо чи є вже в кеші
             const cached = getCachedMarkers(type);
 
             if (cached !== null) {
@@ -119,7 +124,6 @@ function Map({ data }) {
                 console.log(`⏳ Завантаження ${type}...`);
                 setPreloadStatus(prev => ({ ...prev, [type]: 'loading' }));
 
-                // Затримка між запитами щоб не перевантажити API
                 await new Promise(resolve => setTimeout(resolve, 500 * types.indexOf(type)));
 
                 const markers = await fetchMarkersForType(type, district);
@@ -131,7 +135,7 @@ function Map({ data }) {
                 }
             }
         });
-    }, [data]);
+    }, [data?.districts?.[0]?.name]); // Важливо: залежність від імені району
 
     // Тогл через кастомну подію
     useEffect(() => {

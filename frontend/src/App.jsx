@@ -78,12 +78,19 @@ function App() {
         const selected = districts.find((d) => d.name === name);
         if (selected) {
             setData(selected);
+            // Скидаємо активний тип при зміні району
+            setActiveType(null);
+            window.dispatchEvent(new CustomEvent('resetMarkers'));
         }
     };
 
     const handleCityChange = (e) => {
         setSelectedCity(e.target.value);
+        // Скидаємо активний тип при зміні міста
+        setActiveType(null);
+        window.dispatchEvent(new CustomEvent('resetMarkers'));
     };
+
 
     if (error && !data) {
         return (
