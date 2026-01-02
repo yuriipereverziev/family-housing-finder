@@ -78,34 +78,33 @@ function App() {
         setSelectedCity(e.target.value);
     };
 
-    if (loading) {
-        return <div className="loading">Завантаження даних для {selectedCity}...</div>;
-    }
 
-    if (error) {
+    // Замініть цей блок в App.jsx:
+
+    if (loading) {
         return (
             <div className="container">
                 <nav>
                     <h1>🏠 Пошук житла для сімей</h1>
                     <div className="select-wrapper">
-                        <label htmlFor="city-select">
-                            Місто:
-                            <select
-                                id="city-select"
-                                value={selectedCity}
-                                onChange={handleCityChange}
-                                className="city-select"
-                                aria-label="Виберіть місто"
-                            >
-                                <option value="ivano-frankivsk">Івано-Франківськ</option>
-                                <option value="lviv">Львів</option>
-                                <option value="kyiv">Київ</option>
-                                <option value="odesa">Одеса</option>
-                            </select>
-                        </label>
+                        <div className="skeleton skeleton-select"></div>
+                        <div className="skeleton skeleton-select"></div>
                     </div>
-                    <div className="error-message">{error}</div>
+
+                    <div className="stats-grid">
+                        {[1, 2, 3, 4, 5].map(i => (
+                            <div key={i} className="stat-card skeleton-card">
+                                <div className="skeleton skeleton-icon"></div>
+                                <div className="skeleton skeleton-value"></div>
+                                <div className="skeleton skeleton-label"></div>
+                            </div>
+                        ))}
+                    </div>
                 </nav>
+
+                <div className="map-skeleton">
+                    <div className="skeleton skeleton-map"></div>
+                </div>
             </div>
         );
     }
