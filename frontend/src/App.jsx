@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 import Map from './components/Map';
+import { MOCK_DATA } from './data/mockData';
 
 const API_BASE = 'https://family-housing-finder-server.vercel.app';
 
@@ -10,11 +11,11 @@ function App() {
     const [districts, setDistricts] = useState([]);
     const [selectedDistrict, setSelectedDistrict] = useState('');
     const [selectedCity, setSelectedCity] = useState('ivano-frankivsk');
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false); // Змінили на false
     const [error, setError] = useState(null);
     const [activeType, setActiveType] = useState(null);
+    const [isRealData, setIsRealData] = useState(false);
 
-// Додай цей useEffect для синхронізації з Map
     useEffect(() => {
         const handler = (e) => {
             const type = e.detail.type;
@@ -24,7 +25,6 @@ function App() {
         return () => window.removeEventListener('showMarkers', handler);
     }, []);
 
-// Функція кольору для карточок
     const getCardColor = (type) => {
         switch (type) {
             case 'schools': return '#e74c3c';
@@ -36,32 +36,39 @@ function App() {
     };
 
     useEffect(() => {
-        setLoading(true);
-        setError(null);
-        setData(null);
-        setDistricts([]);
-        setSelectedDistrict('');
+        // Одразу показуємо mock дані
+        const mockCityData = MOCK_DATA[selectedCity];
+        if (mockCityData && mockCityData.districts.length > 0) {
+            setDistricts(mockCityData.districts);
+            setSelectedDistrict(mockCityData.districts[0].name);
+            setData(mockCityData.districts[0]);
+            setIsRealData(false);
+        } else {
+            setError(`Дані для міста ${selectedCity} в розробці`);
+        }
 
+        // Паралельно завантажуємо реальні дані
+        setLoading(true);
         axios
             .get(`${API_BASE}/api/districts/${selectedCity}`)
             .then((response) => {
                 const dist = response.data.districts || [];
-                setDistricts(dist);
                 if (dist.length > 0) {
+                    setDistricts(dist);
                     setSelectedDistrict(dist[0].name);
                     setData(dist[0]);
-                } else {
-                    setError('У цьому місті поки що немає даних про райони');
+                    setIsRealData(true);
+                    setError(null);
                 }
                 setLoading(false);
             })
             .catch((err) => {
-                if (err.response?.status === 404) {
-                    setError(`Райони для міста ${selectedCity} в розробці`);
-                } else {
-                    setError('Помилка завантаження даних');
-                }
+                console.log('API недоступний, використовуємо статичні дані');
                 setLoading(false);
+                // Не показуємо помилку, якщо є mock дані
+                if (!mockCityData?.districts.length) {
+                    setError(`Райони для міста ${selectedCity} в розробці`);
+                }
             });
     }, [selectedCity]);
 
@@ -78,46 +85,55 @@ function App() {
         setSelectedCity(e.target.value);
     };
 
-
-    // Замініть цей блок в App.jsx:
-
-    if (loading) {
+    if (error && !data) {
         return (
             <div className="container">
                 <nav>
                     <h1>🏠 Пошук житла для сімей</h1>
                     <div className="select-wrapper">
-                        <div className="skeleton skeleton-select"></div>
-                        <div className="skeleton skeleton-select"></div>
+                        <label htmlFor="city-select">
+                            Місто:
+                            <select
+                                id="city-select"
+                                value={selectedCity}
+                                onChange={handleCityChange}
+                                className="city-select"
+                                aria-label="Виберіть місто"
+                            >
+                                <option value="ivano-frankivsk">Івано-Франківськ</option>
+                                <option value="lviv">Львів</option>
+                                <option value="kyiv">Київ</option>
+                                <option value="odesa">Одеса</option>
+                            </select>
+                        </label>
                     </div>
-
-                    <div className="stats-grid">
-                        {[1, 2, 3, 4, 5].map(i => (
-                            <div key={i} className="stat-card skeleton-card">
-                                <div className="skeleton skeleton-icon"></div>
-                                <div className="skeleton skeleton-value"></div>
-                                <div className="skeleton skeleton-label"></div>
-                            </div>
-                        ))}
-                    </div>
+                    <div className="error-message">{error}</div>
                 </nav>
-
-                <div className="map-skeleton">
-                    <div className="skeleton skeleton-map"></div>
-                </div>
             </div>
         );
     }
 
     if (!data) {
-        return <div className="loading">Немає даних для відображення</div>;
+        return <div className="loading">Завантаження...</div>;
     }
-    console.log(data)
 
     return (
         <div className="container">
             <nav>
                 <h1>🏠 Пошук житла для сімей</h1>
+
+                {/* Індикатор типу даних */}
+                {loading && (
+                    <div className="loading-indicator">
+                        ⏳ Завантаження актуальних даних...
+                    </div>
+                )}
+                {!isRealData && !loading && (
+                    <div className="demo-badge">
+                        📊 Демо-дані (API завантажується)
+                    </div>
+                )}
+
                 <div className="select-wrapper">
                     <label htmlFor="city-select">
                         Місто:
@@ -154,8 +170,8 @@ function App() {
                 </div>
 
                 <div className="stats-grid">
-                    {['schools', 'parks', 'kindergartens',  'playgrounds'].map(type => {
-                        const isActive = activeType === type; // Додаємо стан activeType в App
+                    {['schools', 'parks', 'kindergartens', 'playgrounds'].map(type => {
+                        const isActive = activeType === type;
                         const labels = {
                             schools: { icon: '🏫', label: 'Шкіл', value: data.infrastructure.schools },
                             parks: { icon: '🌳', label: 'Парків', value: data.infrastructure.parks },
@@ -186,7 +202,6 @@ function App() {
                         );
                     })}
 
-                    {/* Score карточка */}
                     <div className="stat-card score-card">
                         <div className="stat-icon">⭐</div>
                         <div className="stat-value">{data.score.toFixed(1)}</div>
