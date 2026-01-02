@@ -3,7 +3,7 @@ import axios from 'axios';
 import './App.css';
 import Map from './components/Map';
 
-const API_BASE = 'http://localhost:5021/api/districts';
+const API_BASE = 'https://family-housing-finder-server.vercel.app';
 
 function App() {
     const [data, setData] = useState(null);
