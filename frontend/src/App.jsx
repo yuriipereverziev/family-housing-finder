@@ -3,6 +3,18 @@ import axios from 'axios';
 import './App.css';
 import Map from './components/Map';
 import { MOCK_DATA } from './data/mockData';
+import {
+    MapPin,
+    Building2,
+    Filter,
+    X,
+    RotateCcw,
+    Check,
+    School,
+    Baby,
+    Trees,
+    PlaySquare
+} from 'lucide-react';
 
 const API_BASE =
     process.env.NODE_ENV === 'development'
@@ -16,10 +28,38 @@ function App() {
     const [selectedCity, setSelectedCity] = useState('ivano-frankivsk');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [activeTypes, setActiveTypes] = useState([]); // ⬅️ Масив замість одного типу
+    const [activeTypes, setActiveTypes] = useState([]);
     const [isRealData, setIsRealData] = useState(false);
     const [realCounts, setRealCounts] = useState(null);
     const [filtersOpen, setFiltersOpen] = useState(false);
+
+    // Конфігурація іконок для фільтрів
+    const FILTERS_CONFIG = [
+        {
+            type: 'schools',
+            label: 'Школи',
+            Icon: School,
+            color: '#e74c3c'
+        },
+        {
+            type: 'kindergartens',
+            label: 'Дитячі садки',
+            Icon: Baby,
+            color: '#3498db'
+        },
+        {
+            type: 'parks',
+            label: 'Парки',
+            Icon: Trees,
+            color: '#2ecc71'
+        },
+        {
+            type: 'playgrounds',
+            label: 'Майданчики',
+            Icon: PlaySquare,
+            color: '#f39c12'
+        },
+    ];
 
     // Слухач для оновлення кількості з Map
     useEffect(() => {
@@ -32,7 +72,6 @@ function App() {
         return () => window.removeEventListener('updateCounts', handleCountUpdate);
     }, []);
 
-    // ⬇️ Оновлений слухач для мультивибору
     useEffect(() => {
         const handler = (e) => {
             const type = e.detail.type;
@@ -47,13 +86,8 @@ function App() {
     }, []);
 
     const getCardColor = (type) => {
-        switch (type) {
-            case 'schools': return '#e74c3c';
-            case 'kindergartens': return '#3498db';
-            case 'parks': return '#2ecc71';
-            case 'playgrounds': return '#f39c12';
-            default: return '#95a5a6';
-        }
+        const config = FILTERS_CONFIG.find(f => f.type === type);
+        return config?.color || '#95a5a6';
     };
 
     // Функція для отримання значення (пріоритет реальним даним)
@@ -113,7 +147,7 @@ function App() {
         const selected = districts.find((d) => d.name === name);
         if (selected) {
             setData(selected);
-            setActiveTypes([]); // ⬅️ Скидаємо масив
+            setActiveTypes([]);
             setRealCounts(null);
             window.dispatchEvent(new CustomEvent('resetMarkers'));
         }
@@ -121,7 +155,7 @@ function App() {
 
     const handleCityChange = (e) => {
         setSelectedCity(e.target.value);
-        setActiveTypes([]); // ⬅️ Скидаємо масив
+        setActiveTypes([]);
         setRealCounts(null);
         window.dispatchEvent(new CustomEvent('resetMarkers'));
     };
@@ -130,10 +164,10 @@ function App() {
         return (
             <div className="container">
                 <nav>
-                    <h1>🏠 Пошук житла для сімей</h1>
+                    <h1> <Building2 size={16} style={{ display: 'inline', marginRight: '4px' }} /> Пошук житла для сімей</h1>
                     <div className="select-wrapper">
                         <label htmlFor="city-select">
-                            Місто:
+                            Місто
                             <select
                                 id="city-select"
                                 value={selectedCity}
@@ -161,11 +195,11 @@ function App() {
     return (
         <div className="container">
             <nav>
-                <h1>🏠 Пошук житла для сімей</h1>
+                <h1> <Building2 size={30} style={{ display: 'inline', marginRight: '4px' }} /> Пошук житла для сімей</h1>
 
                 <div className="select-wrapper">
                     <label htmlFor="city-select">
-                        Місто:
+                        Місто
                         <select
                             id="city-select"
                             value={selectedCity}
@@ -180,7 +214,8 @@ function App() {
                         </select>
                     </label>
                     <label htmlFor="district-select">
-                        Район:
+
+                        Район
                         <select
                             id="district-select"
                             value={selectedDistrict}
@@ -225,8 +260,10 @@ function App() {
                         className="filters-btn"
                         onClick={() => setFiltersOpen(true)}
                     >
-                        ⚙️ Фільтри {activeTypes.length > 0 && (
-                            <span className="filters-badge">({activeTypes.length})</span>
+                        <Filter size={18} />
+                        Фільтри
+                        {activeTypes.length > 0 && (
+                            <span className="filters-badge">{activeTypes.length}</span>
                         )}
                     </button>
                 </div>
@@ -243,37 +280,54 @@ function App() {
                             <button
                                 className="close-btn"
                                 onClick={() => setFiltersOpen(false)}
+                                aria-label="Закрити"
                             >
-                                ✕
+                                <X size={20} />
                             </button>
                         </div>
 
                         <div className="filters-list">
-                            {[
-                                { type: 'schools', label: 'Школи', icon: '🏫' },
-                                { type: 'kindergartens', label: 'Дитячі садки', icon: '👶' },
-                                { type: 'parks', label: 'Парки', icon: '🌳' },
-                                { type: 'playgrounds', label: 'Майданчики', icon: '🎠' },
-                            ].map(item => {
-                                const checked = activeTypes.includes(item.type); // ⬅️ Перевірка в масиві
+                            {FILTERS_CONFIG.map(({ type, label, Icon, color }) => {
+                                const checked = activeTypes.includes(type);
 
                                 return (
-                                    <label key={item.type} className="filter-row">
+                                    <label
+                                        key={type}
+                                        className="filter-row"
+                                        style={{
+                                            borderColor: checked ? color : undefined,
+                                            background: checked ? `${color}08` : undefined
+                                        }}
+                                    >
                                         <input
                                             type="checkbox"
                                             checked={checked}
                                             onChange={() =>
                                                 window.dispatchEvent(
                                                     new CustomEvent('showMarkers', {
-                                                        detail: { type: item.type }
+                                                        detail: { type }
                                                     })
                                                 )
                                             }
                                         />
-                                        <span className="icon">{item.icon}</span>
-                                        <span className="label">{item.label}</span>
-                                        <span className="count">
-                                            ({getInfraValue(item.type)})
+                                        <span
+                                            className="icon"
+                                            style={{
+                                                background: checked ? color : undefined,
+                                                color: checked ? 'white' : undefined
+                                            }}
+                                        >
+                                            <Icon size={20} />
+                                        </span>
+                                        <span className="label">{label}</span>
+                                        <span
+                                            className="count"
+                                            style={{
+                                                background: checked ? color : undefined,
+                                                color: checked ? 'white' : undefined
+                                            }}
+                                        >
+                                            {getInfraValue(type)}
                                         </span>
                                     </label>
                                 );
@@ -289,13 +343,15 @@ function App() {
                                 }}
                                 disabled={activeTypes.length === 0}
                             >
-                                Скинути всі
+                                <RotateCcw size={16} />
+                                Скинути
                             </button>
 
                             <button
                                 className="apply-btn"
                                 onClick={() => setFiltersOpen(false)}
                             >
+                                <Check size={16} />
                                 Готово
                             </button>
                         </div>
