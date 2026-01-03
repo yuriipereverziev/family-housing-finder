@@ -6,7 +6,7 @@ import { MOCK_DATA } from './data/mockData';
 
 const API_BASE =
     process.env.NODE_ENV === 'development'
-        ? 'http://localhost:5002'
+        ? 'http://localhost:5022'
         : 'https://family-housing-finder-server.vercel.app';
 
 function App() {
@@ -20,7 +20,6 @@ function App() {
     const [isRealData, setIsRealData] = useState(false);
     const [realCounts, setRealCounts] = useState(null); // Реальна кількість з карти
     const [filtersOpen, setFiltersOpen] = useState(true); // стан панелі фільтрів
-
 
     // Слухач для оновлення кількості з Map
     useEffect(() => {
@@ -167,6 +166,7 @@ function App() {
             <nav>
                 <h1>🏠 Пошук житла для сімей</h1>
 
+
                 <div className="select-wrapper">
                     <label htmlFor="city-select">
                         Місто:
@@ -183,7 +183,6 @@ function App() {
                             <option value="odesa">Одеса</option>
                         </select>
                     </label>
-
                     <label htmlFor="district-select">
                         Район:
                         <select
@@ -229,69 +228,53 @@ function App() {
                             })()}
                         </select>
                     </label>
-
-
                     <button
                         className="filters-btn"
-                        onClick={() => setFiltersOpen(prev => !prev)}
+                        onClick={() => setFiltersOpen(true)}
                     >
                         ⚙️ Фільтри
                     </button>
-
                 </div>
 
+                {/*<div className="stats-grid">*/}
+                {/*    {['schools', 'parks', 'kindergartens', 'playgrounds'].map(type => {*/}
+                {/*        const isActive = activeType === type;*/}
+                {/*        const labels = {*/}
+                {/*            schools: { icon: '🏫', label: 'Шкіл', value: getInfraValue('schools') },*/}
+                {/*            parks: { icon: '🌳', label: 'Парків', value: getInfraValue('parks') },*/}
+                {/*            kindergartens: { icon: '👶', label: 'Дитячих садків', value: getInfraValue('kindergartens') },*/}
+                {/*            playgrounds: { icon: '🎠', label: 'Дитячих майданчиків', value: getInfraValue('playgrounds') }*/}
+                {/*        };*/}
 
+                {/*        const info = labels[type];*/}
 
+                {/*        return (*/}
+                {/*            <div*/}
+                {/*                key={type}*/}
+                {/*                className={`stat-card ${isActive ? 'active' : ''}`}*/}
+                {/*                style={{*/}
+                {/*                    background: isActive ? getCardColor(type) : 'white',*/}
+                {/*                    color: isActive ? 'white' : '#333',*/}
+                {/*                    border: isActive ? `3px solid ${getCardColor(type)}` : 'none'*/}
+                {/*                }}*/}
+                {/*                onClick={() => window.dispatchEvent(new CustomEvent('showMarkers', { detail: { type } }))}*/}
+                {/*                tabIndex={0}*/}
+                {/*                role="button"*/}
+                {/*                aria-pressed={isActive}*/}
+                {/*            >*/}
+                {/*                <div className="stat-icon">{info.icon}</div>*/}
+                {/*                <div className="stat-value">{info.value}</div>*/}
+                {/*                <div className="stat-label">{info.label}</div>*/}
+                {/*            </div>*/}
+                {/*        );*/}
+                {/*    })}*/}
 
-                {/*<button*/}
-                {/*    className="filter-toggle"*/}
-                {/*    onClick={() => setFiltersOpen(prev => !prev)}*/}
-                {/*>*/}
-                {/*    {filtersOpen ? 'Сховати фільтри' : 'Показати фільтри'}*/}
-                {/*</button>*/}
-
-                {/*{filtersOpen && (*/}
-                {/*    <div className="stats-grid">*/}
-                {/*        {['schools', 'parks', 'kindergartens', 'playgrounds'].map(type => {*/}
-                {/*            const isActive = activeType === type;*/}
-                {/*            const labels = {*/}
-                {/*                schools: { icon: '🏫', label: 'Шкіл', value: getInfraValue('schools') },*/}
-                {/*                parks: { icon: '🌳', label: 'Парків', value: getInfraValue('parks') },*/}
-                {/*                kindergartens: { icon: '👶', label: 'Дитячих садків', value: getInfraValue('kindergartens') },*/}
-                {/*                playgrounds: { icon: '🎠', label: 'Дитячих майданчиків', value: getInfraValue('playgrounds') }*/}
-                {/*            };*/}
-
-                {/*            const info = labels[type];*/}
-
-                {/*            return (*/}
-                {/*                <div*/}
-                {/*                    key={type}*/}
-                {/*                    className={`stat-card ${isActive ? 'active' : ''}`}*/}
-                {/*                    style={{*/}
-                {/*                        background: isActive ? getCardColor(type) : 'white',*/}
-                {/*                        color: isActive ? 'white' : '#333',*/}
-                {/*                        border: isActive ? `3px solid ${getCardColor(type)}` : 'none'*/}
-                {/*                    }}*/}
-                {/*                    onClick={() => window.dispatchEvent(new CustomEvent('showMarkers', { detail: { type } }))}*/}
-                {/*                    tabIndex={0}*/}
-                {/*                    role="button"*/}
-                {/*                    aria-pressed={isActive}*/}
-                {/*                >*/}
-                {/*                    <div className="stat-icon">{info.icon}</div>*/}
-                {/*                    <div className="stat-value">{info.value}</div>*/}
-                {/*                    <div className="stat-label">{info.label}</div>*/}
-                {/*                </div>*/}
-                {/*            );*/}
-                {/*        })}*/}
-
-                {/*        <div className="stat-card score-card">*/}
-                {/*            <div className="stat-icon">⭐</div>*/}
-                {/*            <div className="stat-value">{data.score.toFixed(1)}</div>*/}
-                {/*            <div className="stat-label">Рейтинг району</div>*/}
-                {/*        </div>*/}
+                {/*    <div className="stat-card score-card">*/}
+                {/*        <div className="stat-icon">⭐</div>*/}
+                {/*        <div className="stat-value">{data.score.toFixed(1)}</div>*/}
+                {/*        <div className="stat-label">Рейтинг району</div>*/}
                 {/*    </div>*/}
-                {/*)}*/}
-
+                {/*</div>*/}
             </nav>
 
             {filtersOpen && (
@@ -351,6 +334,7 @@ function App() {
                     </div>
                 </div>
             )}
+
 
             <Map data={{ districts: [data] }} selectedDistrict={data} />
         </div>
