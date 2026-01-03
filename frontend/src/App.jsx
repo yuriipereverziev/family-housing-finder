@@ -16,10 +16,10 @@ function App() {
     const [selectedCity, setSelectedCity] = useState('ivano-frankivsk');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [activeType, setActiveType] = useState(null);
+    const [activeTypes, setActiveTypes] = useState([]); // ⬅️ Масив замість одного типу
     const [isRealData, setIsRealData] = useState(false);
-    const [realCounts, setRealCounts] = useState(null); // Реальна кількість з карти
-    const [filtersOpen, setFiltersOpen] = useState(false); // стан панелі фільтрів
+    const [realCounts, setRealCounts] = useState(null);
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     // Слухач для оновлення кількості з Map
     useEffect(() => {
@@ -32,10 +32,15 @@ function App() {
         return () => window.removeEventListener('updateCounts', handleCountUpdate);
     }, []);
 
+    // ⬇️ Оновлений слухач для мультивибору
     useEffect(() => {
         const handler = (e) => {
             const type = e.detail.type;
-            setActiveType(prev => prev === type ? null : type);
+            setActiveTypes(prev =>
+                prev.includes(type)
+                    ? prev.filter(t => t !== type)
+                    : [...prev, type]
+            );
         };
         window.addEventListener('showMarkers', handler);
         return () => window.removeEventListener('showMarkers', handler);
@@ -53,19 +58,15 @@ function App() {
 
     // Функція для отримання значення (пріоритет реальним даним)
     const getInfraValue = (type) => {
-        // Якщо є реальні підраховані дані з Map, використовуємо їх
         if (realCounts && realCounts[type] !== undefined) {
             return realCounts[type];
         }
-        // Інакше беремо з data (API або mock)
         return data?.infrastructure?.[type] || 0;
     };
 
     useEffect(() => {
-        // Скидаємо реальні підрахунки при зміні міста
         setRealCounts(null);
 
-        // Одразу показуємо mock дані
         const mockCityData = MOCK_DATA[selectedCity];
         if (mockCityData && mockCityData.districts.length > 0) {
             setDistricts(mockCityData.districts);
@@ -76,7 +77,6 @@ function App() {
             setError(`Дані для міста ${selectedCity} в розробці`);
         }
 
-        // Паралельно завантажуємо реальні дані
         setLoading(true);
         axios
             .get(`${API_BASE}/api/districts/${selectedCity}`)
@@ -85,7 +85,6 @@ function App() {
                 if (dist.length > 0) {
                     setDistricts(dist);
 
-                    // Зберігаємо вибраний район або беремо перший
                     const currentDistrictName = selectedDistrict;
                     const matchedDistrict = dist.find(d => d.name === currentDistrictName) || dist[0];
 
@@ -114,8 +113,7 @@ function App() {
         const selected = districts.find((d) => d.name === name);
         if (selected) {
             setData(selected);
-            // Скидаємо активний тип і реальні підрахунки при зміні району
-            setActiveType(null);
+            setActiveTypes([]); // ⬅️ Скидаємо масив
             setRealCounts(null);
             window.dispatchEvent(new CustomEvent('resetMarkers'));
         }
@@ -123,8 +121,7 @@ function App() {
 
     const handleCityChange = (e) => {
         setSelectedCity(e.target.value);
-        // Скидаємо активний тип і реальні підрахунки при зміні міста
-        setActiveType(null);
+        setActiveTypes([]); // ⬅️ Скидаємо масив
         setRealCounts(null);
         window.dispatchEvent(new CustomEvent('resetMarkers'));
     };
@@ -166,7 +163,6 @@ function App() {
             <nav>
                 <h1>🏠 Пошук житла для сімей</h1>
 
-
                 <div className="select-wrapper">
                     <label htmlFor="city-select">
                         Місто:
@@ -195,10 +191,7 @@ function App() {
                             {(() => {
                                 if (!districts || districts.length === 0) return null;
 
-                                // Масив рекомендованих
                                 const recommendedNames = ['Центр', 'Каскад', 'Бам', 'Пасічна'];
-
-                                // Розділяємо райони на рекомендовані та інші
                                 const recommendedDistricts = districts.filter(d => recommendedNames.includes(d.name));
                                 const otherDistricts = districts.filter(d => !recommendedNames.includes(d.name));
 
@@ -232,49 +225,11 @@ function App() {
                         className="filters-btn"
                         onClick={() => setFiltersOpen(true)}
                     >
-                        ⚙️ Фільтри
+                        ⚙️ Фільтри {activeTypes.length > 0 && (
+                            <span className="filters-badge">({activeTypes.length})</span>
+                        )}
                     </button>
                 </div>
-
-                {/*<div className="stats-grid">*/}
-                {/*    {['schools', 'parks', 'kindergartens', 'playgrounds'].map(type => {*/}
-                {/*        const isActive = activeType === type;*/}
-                {/*        const labels = {*/}
-                {/*            schools: { icon: '🏫', label: 'Шкіл', value: getInfraValue('schools') },*/}
-                {/*            parks: { icon: '🌳', label: 'Парків', value: getInfraValue('parks') },*/}
-                {/*            kindergartens: { icon: '👶', label: 'Дитячих садків', value: getInfraValue('kindergartens') },*/}
-                {/*            playgrounds: { icon: '🎠', label: 'Дитячих майданчиків', value: getInfraValue('playgrounds') }*/}
-                {/*        };*/}
-
-                {/*        const info = labels[type];*/}
-
-                {/*        return (*/}
-                {/*            <div*/}
-                {/*                key={type}*/}
-                {/*                className={`stat-card ${isActive ? 'active' : ''}`}*/}
-                {/*                style={{*/}
-                {/*                    background: isActive ? getCardColor(type) : 'white',*/}
-                {/*                    color: isActive ? 'white' : '#333',*/}
-                {/*                    border: isActive ? `3px solid ${getCardColor(type)}` : 'none'*/}
-                {/*                }}*/}
-                {/*                onClick={() => window.dispatchEvent(new CustomEvent('showMarkers', { detail: { type } }))}*/}
-                {/*                tabIndex={0}*/}
-                {/*                role="button"*/}
-                {/*                aria-pressed={isActive}*/}
-                {/*            >*/}
-                {/*                <div className="stat-icon">{info.icon}</div>*/}
-                {/*                <div className="stat-value">{info.value}</div>*/}
-                {/*                <div className="stat-label">{info.label}</div>*/}
-                {/*            </div>*/}
-                {/*        );*/}
-                {/*    })}*/}
-
-                {/*    <div className="stat-card score-card">*/}
-                {/*        <div className="stat-icon">⭐</div>*/}
-                {/*        <div className="stat-value">{data.score.toFixed(1)}</div>*/}
-                {/*        <div className="stat-label">Рейтинг району</div>*/}
-                {/*    </div>*/}
-                {/*</div>*/}
             </nav>
 
             {filtersOpen && (
@@ -300,7 +255,7 @@ function App() {
                                 { type: 'parks', label: 'Парки', icon: '🌳' },
                                 { type: 'playgrounds', label: 'Майданчики', icon: '🎠' },
                             ].map(item => {
-                                const checked = activeType === item.type;
+                                const checked = activeTypes.includes(item.type); // ⬅️ Перевірка в масиві
 
                                 return (
                                     <label key={item.type} className="filter-row">
@@ -318,23 +273,35 @@ function App() {
                                         <span className="icon">{item.icon}</span>
                                         <span className="label">{item.label}</span>
                                         <span className="count">
-                                ({getInfraValue(item.type)})
-                            </span>
+                                            ({getInfraValue(item.type)})
+                                        </span>
                                     </label>
                                 );
                             })}
                         </div>
 
-                        <button
-                            className="apply-btn"
-                            onClick={() => setFiltersOpen(false)}
-                        >
-                            Готово
-                        </button>
+                        <div className="filters-actions">
+                            <button
+                                className="clear-btn"
+                                onClick={() => {
+                                    setActiveTypes([]);
+                                    window.dispatchEvent(new CustomEvent('resetMarkers'));
+                                }}
+                                disabled={activeTypes.length === 0}
+                            >
+                                Скинути всі
+                            </button>
+
+                            <button
+                                className="apply-btn"
+                                onClick={() => setFiltersOpen(false)}
+                            >
+                                Готово
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
-
 
             <Map data={{ districts: [data] }} selectedDistrict={data} />
         </div>
