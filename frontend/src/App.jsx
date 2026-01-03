@@ -19,7 +19,7 @@ function App() {
     const [activeType, setActiveType] = useState(null);
     const [isRealData, setIsRealData] = useState(false);
     const [realCounts, setRealCounts] = useState(null); // Реальна кількість з карти
-    const [filtersOpen, setFiltersOpen] = useState(true); // стан панелі фільтрів
+    const [filtersOpen, setFiltersOpen] = useState(false); // стан панелі фільтрів
 
     // Слухач для оновлення кількості з Map
     useEffect(() => {
