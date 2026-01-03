@@ -5,6 +5,9 @@ import L from 'leaflet';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point, polygon } from '@turf/helpers';
 
+import EnableGestureHandling from './EnableGestureHandling';
+
+
 // ============ КОНСТАНТИ ============
 const CACHE_VERSION = 'v3';
 const CACHE_EXPIRY_DAYS = 30;
@@ -294,7 +297,10 @@ function Map({ data }) {
                 marginTop: '20px'
             }}
         >
+
             <ChangeMapView center={mapCenter} zoom={14} />
+            <EnableGestureHandling text="Use two fingers to move the map" />
+
 
             <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

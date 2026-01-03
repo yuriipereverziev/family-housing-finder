@@ -13,8 +13,10 @@ import {
     School,
     Baby,
     Trees,
-    PlaySquare
+    PlaySquare,
+    ChevronDown
 } from 'lucide-react';
+
 
 const API_BASE =
     process.env.NODE_ENV === 'development'
@@ -194,17 +196,27 @@ function App() {
 
     return (
         <div className="container">
-            <nav>
-                <h1> <Building2 size={30} style={{ display: 'inline', marginRight: '4px' }} /> Пошук житла для сімей</h1>
 
-                <div className="select-wrapper">
-                    <label htmlFor="city-select">
-                        Місто
+
+            <nav className="modern-nav">
+                <div className="nav-header">
+                    <div className="logo">
+                        <Building2 size={28} strokeWidth={2.5} />
+                        <h1>Пошук житла для сімей</h1>
+                    </div>
+                </div>
+
+                <div className="nav-controls">
+                    {/* Місто */}
+                    <div className="select-group">
+                        <div className="select-icon">
+                            <MapPin size={18} />
+                        </div>
                         <select
                             id="city-select"
                             value={selectedCity}
                             onChange={handleCityChange}
-                            className="city-select"
+                            className="modern-select"
                             aria-label="Виберіть місто"
                         >
                             <option value="ivano-frankivsk">Івано-Франківськ</option>
@@ -212,15 +224,19 @@ function App() {
                             <option value="kyiv">Київ</option>
                             <option value="odesa">Одеса</option>
                         </select>
-                    </label>
-                    <label htmlFor="district-select">
+                        <ChevronDown size={16} className="select-arrow" />
+                    </div>
 
-                        Район
+                    {/* Район */}
+                    <div className="select-group">
+                        <div className="select-icon">
+                            <Building2 size={18} />
+                        </div>
                         <select
                             id="district-select"
                             value={selectedDistrict}
                             onChange={handleDistrictChange}
-                            className="district-select"
+                            className="modern-select"
                             aria-label="Виберіть район"
                         >
                             {(() => {
@@ -241,7 +257,6 @@ function App() {
                                                 ))}
                                             </optgroup>
                                         )}
-
                                         {otherDistricts.length > 0 && (
                                             <optgroup label="Інші райони">
                                                 {otherDistricts.map(d => (
@@ -255,19 +270,96 @@ function App() {
                                 );
                             })()}
                         </select>
-                    </label>
+                        <ChevronDown size={16} className="select-arrow" />
+                    </div>
+
+                    {/* Фільтри */}
                     <button
-                        className="filters-btn"
+                        className="filters-btn-modern"
                         onClick={() => setFiltersOpen(true)}
                     >
                         <Filter size={18} />
-                        Фільтри
+                        <span>Фільтри</span>
                         {activeTypes.length > 0 && (
-                            <span className="filters-badge">{activeTypes.length}</span>
+                            <span className="filters-badge-modern">{activeTypes.length}</span>
                         )}
                     </button>
                 </div>
             </nav>
+            {/*<nav>*/}
+            {/*    <h1> <Building2 size={30} style={{ display: 'inline', marginRight: '4px' }} /> Пошук житла для сімей</h1>*/}
+
+            {/*    <div className="select-wrapper">*/}
+            {/*        <label htmlFor="city-select">*/}
+            {/*            Місто*/}
+            {/*            <select*/}
+            {/*                id="city-select"*/}
+            {/*                value={selectedCity}*/}
+            {/*                onChange={handleCityChange}*/}
+            {/*                className="city-select"*/}
+            {/*                aria-label="Виберіть місто"*/}
+            {/*            >*/}
+            {/*                <option value="ivano-frankivsk">Івано-Франківськ</option>*/}
+            {/*                <option value="lviv">Львів</option>*/}
+            {/*                <option value="kyiv">Київ</option>*/}
+            {/*                <option value="odesa">Одеса</option>*/}
+            {/*            </select>*/}
+            {/*        </label>*/}
+            {/*        <label htmlFor="district-select">*/}
+
+            {/*            Район*/}
+            {/*            <select*/}
+            {/*                id="district-select"*/}
+            {/*                value={selectedDistrict}*/}
+            {/*                onChange={handleDistrictChange}*/}
+            {/*                className="district-select"*/}
+            {/*                aria-label="Виберіть район"*/}
+            {/*            >*/}
+            {/*                {(() => {*/}
+            {/*                    if (!districts || districts.length === 0) return null;*/}
+
+            {/*                    const recommendedNames = ['Центр', 'Каскад', 'Бам', 'Пасічна'];*/}
+            {/*                    const recommendedDistricts = districts.filter(d => recommendedNames.includes(d.name));*/}
+            {/*                    const otherDistricts = districts.filter(d => !recommendedNames.includes(d.name));*/}
+
+            {/*                    return (*/}
+            {/*                        <>*/}
+            {/*                            {recommendedDistricts.length > 0 && (*/}
+            {/*                                <optgroup label="⭐ Рекомендовані">*/}
+            {/*                                    {recommendedDistricts.map(d => (*/}
+            {/*                                        <option key={d.name} value={d.name}>*/}
+            {/*                                            {d.name}*/}
+            {/*                                        </option>*/}
+            {/*                                    ))}*/}
+            {/*                                </optgroup>*/}
+            {/*                            )}*/}
+
+            {/*                            {otherDistricts.length > 0 && (*/}
+            {/*                                <optgroup label="Інші райони">*/}
+            {/*                                    {otherDistricts.map(d => (*/}
+            {/*                                        <option key={d.name} value={d.name}>*/}
+            {/*                                            {d.name}*/}
+            {/*                                        </option>*/}
+            {/*                                    ))}*/}
+            {/*                                </optgroup>*/}
+            {/*                            )}*/}
+            {/*                        </>*/}
+            {/*                    );*/}
+            {/*                })()}*/}
+            {/*            </select>*/}
+            {/*        </label>*/}
+            {/*        <button*/}
+            {/*            className="filters-btn"*/}
+            {/*            onClick={() => setFiltersOpen(true)}*/}
+            {/*        >*/}
+            {/*            <Filter size={18} />*/}
+            {/*            Фільтри*/}
+            {/*            {activeTypes.length > 0 && (*/}
+            {/*                <span className="filters-badge">{activeTypes.length}</span>*/}
+            {/*            )}*/}
+            {/*        </button>*/}
+            {/*    </div>*/}
+            {/*</nav>*/}
 
             {filtersOpen && (
                 <div className="filters-overlay" onClick={() => setFiltersOpen(false)}>
@@ -334,25 +426,25 @@ function App() {
                             })}
                         </div>
 
-                        <div className="filters-actions">
+                        <div className="filters-actions-modern">
                             <button
-                                className="clear-btn"
+                                className="action-btn clear-btn-modern"
                                 onClick={() => {
                                     setActiveTypes([]);
                                     window.dispatchEvent(new CustomEvent('resetMarkers'));
                                 }}
                                 disabled={activeTypes.length === 0}
                             >
-                                <RotateCcw size={16} />
-                                Скинути
+                                <RotateCcw size={18} strokeWidth={2.5} />
+                                <span>Скинути</span>
                             </button>
 
                             <button
-                                className="apply-btn"
+                                className="action-btn apply-btn-modern"
                                 onClick={() => setFiltersOpen(false)}
                             >
-                                <Check size={16} />
-                                Готово
+                                <Check size={18} strokeWidth={2.5} />
+                                <span>Застосувати</span>
                             </button>
                         </div>
                     </div>
