@@ -4,26 +4,26 @@ import NodeCache from "node-cache";
 // Кеш на 24 години (86400 секунд)
 const cache = new NodeCache({ stdTTL: 86400 });
 
-export const getFamilyInfrastructure = async ({ lat, lon, radius, name }) => {
-    // name — унікальний ключ району для кешу
+export const getFamilyInfrastructure = async (district) => {    const { name, polygon } = district; // polygon = [[[lon,lat], [lon,lat], ...]]
+
     const cached = cache.get(name);
     if (cached) return cached;
+
+    // Перетворюємо в Overpass poly формат: lat lon lat lon ...
+    const polyCoords = polygon[0].flatMap(([lon, lat]) => `${lat} ${lon}`).join(' ');
 
     const query = `
     [out:json][timeout:25];
     (
-      node["amenity"="school"](around:${radius},${lat},${lon});
-      way["amenity"="school"](around:${radius},${lat},${lon});
-
-      node["amenity"="kindergarten"](around:${radius},${lat},${lon});
-      way["amenity"="kindergarten"](around:${radius},${lat},${lon});
-
-      node["leisure"="park"](around:${radius},${lat},${lon});
-      way["leisure"="park"](around:${radius},${lat},${lon});
-      relation["leisure"="park"](around:${radius},${lat},${lon});
-
-      node["leisure"="playground"](around:${radius},${lat},${lon});
-      way["leisure"="playground"](around:${radius},${lat},${lon});
+      node["amenity"="school"](poly:"${polyCoords}");
+      way["amenity"="school"](poly:"${polyCoords}");
+      node["amenity"="kindergarten"](poly:"${polyCoords}");
+      way["amenity"="kindergarten"](poly:"${polyCoords}");
+      node["leisure"="park"](poly:"${polyCoords}");
+      way["leisure"="park"](poly:"${polyCoords}");
+      relation["leisure"="park"](poly:"${polyCoords}");
+      node["leisure"="playground"](poly:"${polyCoords}");
+      way["leisure"="playground"](poly:"${polyCoords}");
     );
     out center tags;
   `;
