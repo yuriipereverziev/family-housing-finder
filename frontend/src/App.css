@@ -974,6 +974,7 @@ label {
 
 /* Модальне вікно з категоріями */
 .filters-modal-categories {
+    height: 575px;
     background: white;
     width: 100%;
     max-width: 650px;
@@ -1140,7 +1141,7 @@ label {
 @media (max-width: 768px) {
     .filters-modal-categories {
         max-width: 90%;
-        height: 575px;
+
         /*max-height: 90vh;*/
         margin: 20px 10px;
         padding: 20px;
