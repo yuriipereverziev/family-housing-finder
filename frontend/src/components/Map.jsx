@@ -2,288 +2,192 @@ import { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
-import { point, polygon } from '@turf/helpers';
+import { renderToStaticMarkup } from 'react-dom/server';
+import {
+    School, Baby, Trees, PlaySquare, Hospital, Pill, Stethoscope,
+    Bus, Train, ShoppingCart, Store, Dumbbell, Film, ShieldCheck,
+    Coffee, Landmark, BookOpen
+} from 'lucide-react';
 
 import EnableGestureHandling from './EnableGestureHandling';
 
+const API_BASE =
+    import.meta.env.DEV
+        ? 'http://localhost:5023'
+        : 'https://family-housing-finder-server.vercel.app';
 
-// ============ КОНСТАНТИ ============
-const CACHE_VERSION = 'v3';
-const CACHE_EXPIRY_DAYS = 30;
-const OVERPASS_API = 'https://overpass.kumi.systems/api/interpreter';
-const OVERPASS_TIMEOUT = 40;
-const SEARCH_RADIUS = 4000;
 const DEFAULT_CENTER = [48.9226, 24.7111];
 
 const FACILITY_TYPES = {
-    schools: { key: 'amenity', value: 'school', emoji: '🏫' },
-    kindergartens: { key: 'amenity', value: 'kindergarten', emoji: '👶' },
-    parks: { key: 'leisure', value: 'park', emoji: '🌳' },
-    playgrounds: { key: 'leisure', value: 'playground', emoji: '🎠' }
+    schools:        { Icon: School,        color: '#e74c3c' },
+    kindergartens:  { Icon: Baby,          color: '#3498db' },
+    libraries:      { Icon: BookOpen,      color: '#9b59b6' },
+    hospitals:      { Icon: Hospital,      color: '#e74c3c' },
+    pharmacies:     { Icon: Pill,          color: '#27ae60' },
+    clinics:        { Icon: Stethoscope,   color: '#3498db' },
+    busStops:       { Icon: Bus,           color: '#f39c12' },
+    railwayStations:{ Icon: Train,         color: '#e67e22' },
+    supermarkets:   { Icon: ShoppingCart,  color: '#2ecc71' },
+    convenience:    { Icon: Store,         color: '#16a085' },
+    parks:          { Icon: Trees,         color: '#2ecc71' },
+    playgrounds:    { Icon: PlaySquare,    color: '#f39c12' },
+    sportsCentres:  { Icon: Dumbbell,      color: '#e74c3c' },
+    cinemas:        { Icon: Film,          color: '#9b59b6' },
+    banks:          { Icon: Landmark,      color: '#34495e' },
+    cafes:          { Icon: Coffee,        color: '#d35400' },
+    police:         { Icon: ShieldCheck,   color: '#3498db' }
 };
 
-// ============ УТИЛІТИ ============
-const createCacheKey = (districtName, type) =>
-    `map_cache_${CACHE_VERSION}_${districtName.replace(/\s+/g, '_')}_${type}`;
-
-const isCacheValid = (timestamp) =>
-    (Date.now() - timestamp) / 86400000 <= CACHE_EXPIRY_DAYS;
-
-const getPolygonCenter = (positions) => {
-    if (!positions?.[0]) return null;
-
-    const ring = Array.isArray(positions[0][0][0]) ? positions[0][0] : positions[0];
-    const sum = ring.reduce((acc, [lat, lon]) => ({
-        lat: acc.lat + lat,
-        lon: acc.lon + lon
-    }), { lat: 0, lon: 0 });
-
-    return [sum.lat / ring.length, sum.lon / ring.length];
-};
-
-const getFillColor = (score) => `hsl(${score * 15}, 70%, 60%)`;
-
-// ============ ХУКИ ============
-const useCache = (districtName) => {
-    const getCached = (type) => {
-        if (!districtName) return null;
-
-        const key = createCacheKey(districtName, type);
-        const cached = localStorage.getItem(key);
-
-        if (!cached) return null;
-
-        try {
-            const { timestamp, markers } = JSON.parse(cached);
-
-            if (!isCacheValid(timestamp)) {
-                localStorage.removeItem(key);
-                return null;
-            }
-
-            console.log(`📦 Кеш: ${type} → ${markers.length} міток`);
-            return markers;
-        } catch {
-            localStorage.removeItem(key);
-            return null;
-        }
-    };
-
-    const setCached = (type, markers) => {
-        if (!districtName) return;
-
-        const key = createCacheKey(districtName, type);
-        localStorage.setItem(key, JSON.stringify({
-            timestamp: Date.now(),
-            markers
-        }));
-        console.log(`💾 Збережено: ${type} → ${markers.length} міток`);
-    };
-
-    return { getCached, setCached };
-};
-
-const usePointInPolygon = (districts) => {
-    return (lat, lon, districtName) => {
-        try {
-            const district = districts?.find(d => d.name === districtName);
-            if (!district?.polygon) return false;
-
-            const turfPolygon = polygon(district.polygon);
-            return booleanPointInPolygon(point([lon, lat]), turfPolygon);
-        } catch (e) {
-            console.error(`❌ Помилка перевірки точки для "${districtName}":`, e);
-            return false;
-        }
-    };
-};
-
-// ============ OVERPASS API ============
-const buildOverpassQuery = (config, lat, lon) => `
-  [out:json][timeout:${OVERPASS_TIMEOUT}];
-  (
-    node["${config.key}"="${config.value}"](around:${SEARCH_RADIUS},${lat},${lon});
-    way["${config.key}"="${config.value}"](around:${SEARCH_RADIUS},${lat},${lon});
-    relation["${config.key}"="${config.value}"](around:${SEARCH_RADIUS},${lat},${lon});
-  );
-  out center;
-`;
-
-const fetchOverpassData = async (type, district) => {
-    const config = FACILITY_TYPES[type];
-    const query = buildOverpassQuery(config, district.lat, district.lon);
-
-    const response = await fetch(OVERPASS_API, {
-        method: 'POST',
-        body: query
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.elements
-        .filter(el => el.lat || el.center?.lat)
-        .map(el => ({
-            lat: el.lat || el.center.lat,
-            lon: el.lon || el.center.lon
-        }));
-};
-
-// ============ КОМПОНЕНТИ ============
 function ChangeMapView({ center, zoom }) {
     const map = useMap();
-
     useEffect(() => {
-        if (center) {
-            map.setView(center, zoom, {
-                animate: true,
-                duration: 0.5
-            });
-        }
+        if (center) map.setView(center, zoom, { animate: true, duration: 0.5 });
     }, [center, zoom, map]);
-
     return null;
 }
 
-function Map({ data }) {
+function Map({ data, city = 'ivano-frankivsk' }) {
     const [activeTypes, setActiveTypes] = useState([]);
     const [markersData, setMarkersData] = useState({});
+    const [counts, setCounts] = useState({});
+    const cache = useMemo(() => ({}), []);
 
     const currentDistrict = data?.districts?.[0];
-    const { getCached, setCached } = useCache(currentDistrict?.name);
-    const isPointInPolygon = usePointInPolygon(data?.districts);
 
-    // Конвертація полігону для Leaflet
     const polygonPositions = useMemo(() => {
-        if (!currentDistrict?.polygon) return null;
-        return currentDistrict.polygon.map(ring =>
-            ring.map(([lon, lat]) => [lat, lon])
-        );
+        if (!currentDistrict?.polygon || !Array.isArray(currentDistrict.polygon)) {
+            console.log('⚠️ Полігон відсутній');
+            return null;
+        }
+
+        // Якщо полігон вже у правильному форматі [[lat, lon], ...]
+        if (currentDistrict.polygon.length > 0 && Array.isArray(currentDistrict.polygon[0])) {
+            console.log(`✅ Полігон знайдено: ${currentDistrict.polygon[0].length} точок`);
+            return currentDistrict.polygon; // Вже правильний формат для Leaflet
+        }
+
+        return null;
     }, [currentDistrict]);
 
-    // Центр карти
+    // ✅ Обчислення центру карти
     const mapCenter = useMemo(() => {
-        if (polygonPositions) {
-            return getPolygonCenter(polygonPositions);
+        if (currentDistrict?.lat && currentDistrict?.lon) {
+            console.log(`📍 Центр району: [${currentDistrict.lat}, ${currentDistrict.lon}]`);
+            return [currentDistrict.lat, currentDistrict.lon];
         }
-        return currentDistrict
-            ? [currentDistrict.lat, currentDistrict.lon]
-            : DEFAULT_CENTER;
-    }, [polygonPositions, currentDistrict]);
 
-    // Обробка подій - МУЛЬТИВИБІР
-    useEffect(() => {
-        const handleToggle = (e) => {
-            const type = e.detail.type;
-            setActiveTypes(prev =>
-                prev.includes(type)
-                    ? prev.filter(t => t !== type)
-                    : [...prev, type]
+        if (polygonPositions?.[0]?.length > 0) {
+            const ring = polygonPositions[0];
+            const sum = ring.reduce(
+                (acc, [lat, lon]) => ({ lat: acc.lat + lat, lon: acc.lon + lon }),
+                { lat: 0, lon: 0 }
             );
-        };
+            const center = [sum.lat / ring.length, sum.lon / ring.length];
+            console.log(`📍 Центр з полігону: [${center[0]}, ${center[1]}]`);
+            return center;
+        }
 
+        console.log('📍 Використовується дефолтний центр');
+        return DEFAULT_CENTER;
+    }, [currentDistrict, polygonPositions]);
+
+    const fetchInfrastructure = async (type) => {
+        try {
+            const res = await fetch(
+                `${API_BASE}/api/infrastructure/${city}/${encodeURIComponent(
+                    currentDistrict.name
+                )}/${type}`
+            );
+
+            if (!res.ok) {
+                const text = await res.text();
+                console.error(`HTTP error ${res.status} for ${type}:`, text);
+                return { count: 0, markers: [] };
+            }
+
+            const contentType = res.headers.get('content-type');
+            if (!contentType?.includes('application/json')) {
+                const text = await res.text();
+                console.error(`Expected JSON for ${type} but got:`, text);
+                return { count: 0, markers: [] };
+            }
+
+            const json = await res.json();
+            console.log(`✅ Завантажено ${type}: ${json.count} об'єктів`);
+            return { count: json.count || 0, markers: json.markers || [] };
+        } catch (err) {
+            console.error(`Error fetching ${type}:`, err);
+            return { count: 0, markers: [] };
+        }
+    };
+
+    // Попереднє завантаження лічильників
+    useEffect(() => {
+        if (!currentDistrict?.name) return;
+
+        Object.keys(FACILITY_TYPES).forEach(async (type) => {
+            if (cache[type]) {
+                setCounts(prev => ({ ...prev, [type]: cache[type].count }));
+                return;
+            }
+
+            const result = await fetchInfrastructure(type);
+            cache[type] = result;
+            setCounts(prev => ({ ...prev, [type]: result.count }));
+            window.dispatchEvent(new CustomEvent('updateCounts', { detail: { counts: { [type]: result.count } } }));
+        });
+    }, [currentDistrict?.name, city, cache]);
+
+    // Завантаження маркерів для активних типів
+    useEffect(() => {
+        if (!currentDistrict?.name || !activeTypes.length) return;
+
+        activeTypes.forEach(async (type) => {
+            if (markersData[type]) return;
+
+            const result = cache[type] || await fetchInfrastructure(type);
+            cache[type] = result;
+            setMarkersData(prev => ({ ...prev, [type]: result.markers }));
+        });
+    }, [activeTypes, currentDistrict, city, cache, markersData]);
+
+    // Обробка подій show/reset
+    useEffect(() => {
+        const handleToggle = e => {
+            const type = e.detail.type;
+            setActiveTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
+        };
         const handleReset = () => {
             setActiveTypes([]);
             setMarkersData({});
         };
-
         window.addEventListener('showMarkers', handleToggle);
         window.addEventListener('resetMarkers', handleReset);
-
         return () => {
             window.removeEventListener('showMarkers', handleToggle);
             window.removeEventListener('resetMarkers', handleReset);
         };
     }, []);
 
-    // Попереднє завантаження даних
+    const allMarkers = useMemo(() =>
+            activeTypes.flatMap(type =>
+                (markersData[type] || []).map(m => ({ ...m, type }))
+            ),
+        [activeTypes, markersData]
+    );
+
+    // ✅ Додано логування для дебагу
     useEffect(() => {
-        if (!currentDistrict) return;
-
-        const counts = {};
-        console.log(`🚀 Попереднє завантаження для "${currentDistrict.name}"`);
-
-        Object.keys(FACILITY_TYPES).forEach(async (type, index) => {
-            const cached = getCached(type);
-
-            if (cached) {
-                const filtered = cached.filter(m =>
-                    isPointInPolygon(m.lat, m.lon, currentDistrict.name)
-                );
-                counts[type] = filtered.length;
-                console.log(`✅ ${type}: ${filtered.length} (кеш)`);
-
-                window.dispatchEvent(new CustomEvent('updateCounts', {
-                    detail: { counts: { ...counts } }
-                }));
-                return;
-            }
-
-            // Затримка між запитами
-            await new Promise(resolve => setTimeout(resolve, 1000 * index));
-
-            try {
-                console.log(`⏳ Завантаження ${type}...`);
-                let markers = await fetchOverpassData(type, currentDistrict);
-
-                markers = markers.filter(m =>
-                    isPointInPolygon(m.lat, m.lon, currentDistrict.name)
-                );
-
-                counts[type] = markers.length;
-                setCached(type, markers);
-
-                window.dispatchEvent(new CustomEvent('updateCounts', {
-                    detail: { counts: { ...counts } }
-                }));
-            } catch (err) {
-                console.error(`❌ Помилка (${type}):`, err);
-                counts[type] = 0;
-            }
+        console.log('🗺️ Map render:', {
+            hasDistrict: !!currentDistrict,
+            districtName: currentDistrict?.name,
+            hasPolygon: !!polygonPositions,
+            polygonRings: polygonPositions?.length,
+            mapCenter,
+            activeMarkersTypes: activeTypes,
+            totalMarkers: allMarkers.length
         });
-    }, [currentDistrict?.name]);
-
-    // Завантаження міток для ВСІХ активних типів
-    useEffect(() => {
-        if (!currentDistrict) return;
-
-        activeTypes.forEach(type => {
-            // Якщо вже завантажено - пропускаємо
-            if (markersData[type]) return;
-
-            const cached = getCached(type);
-            if (cached) {
-                const filtered = cached.filter(m =>
-                    isPointInPolygon(m.lat, m.lon, currentDistrict.name)
-                );
-                setMarkersData(prev => ({ ...prev, [type]: filtered }));
-                return;
-            }
-
-            fetchOverpassData(type, currentDistrict)
-                .then(markers => {
-                    const filtered = markers.filter(m =>
-                        isPointInPolygon(m.lat, m.lon, currentDistrict.name)
-                    );
-                    setMarkersData(prev => ({ ...prev, [type]: filtered }));
-                    setCached(type, filtered);
-                })
-                .catch(err => {
-                    console.error(`❌ Помилка Overpass (${type}):`, err);
-                    setMarkersData(prev => ({ ...prev, [type]: [] }));
-                });
-        });
-    }, [activeTypes, currentDistrict]);
-
-    // Об'єднання всіх міток з активних типів
-    const allMarkers = useMemo(() => {
-        return activeTypes.flatMap(type =>
-            (markersData[type] || []).map(m => ({ ...m, type }))
-        );
-    }, [activeTypes, markersData]);
+    }, [currentDistrict, polygonPositions, mapCenter, activeTypes, allMarkers]);
 
     return (
         <MapContainer
@@ -297,21 +201,19 @@ function Map({ data }) {
                 marginTop: '20px'
             }}
         >
-
             <ChangeMapView center={mapCenter} zoom={14} />
-            <EnableGestureHandling text="Use two fingers to move the map" />
-
+            <EnableGestureHandling text="Використовуйте Ctrl + скрол для зуму" />
 
             <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; OpenStreetMap contributors'
             />
 
-            {polygonPositions && (
+            {polygonPositions && polygonPositions.length > 0 && (
                 <Polygon
                     positions={polygonPositions}
                     pathOptions={{
-                        fillColor: getFillColor(currentDistrict?.score || 3),
+                        fillColor: `hsl(${(currentDistrict?.score || 3) * 15}, 70%, 60%)`,
                         fillOpacity: 0.45,
                         color: '#ffffff',
                         weight: 5,
@@ -320,30 +222,37 @@ function Map({ data }) {
                 />
             )}
 
-            {allMarkers.map((m, i) => (
-                <Marker
-                    key={`${m.type}-${i}`}
-                    position={[m.lat, m.lon]}
-                    icon={L.divIcon({
-                        className: 'emoji-marker',
-                        html: `
-              <div style="
-                font-size: 22px;
-                line-height: 22px;
-                background: white;
-                border-radius: 50%;
-                padding: 4px;
-                box-shadow: 0 4px 10px rgba(0,0,0,.35);
-                transform: translate(-50%, -50%);
-              ">
-                ${FACILITY_TYPES[m.type].emoji}
-              </div>
-            `,
-                        iconSize: [30, 30],
-                        iconAnchor: [15, 15]
-                    })}
-                />
-            ))}
+            {allMarkers
+                .filter(m => m.lat != null && m.lon != null)
+                .map((m) => {
+                    const { Icon, color } = FACILITY_TYPES[m.type] || {};
+                    if (!Icon) return null;
+
+                    const iconHtml = `
+                        <div style="
+                            width: 36px; height: 36px; background: ${color}; border-radius: 50%;
+                            display: flex; align-items: center; justify-content: center;
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 3px solid white;
+                        ">
+                            ${renderToStaticMarkup(<Icon size={20} color="white" strokeWidth={2.5} />)}
+                        </div>
+                    `;
+
+                    const markerKey = `${m.type}-${m.lat.toFixed(6)}-${m.lon.toFixed(6)}`;
+
+                    return (
+                        <Marker
+                            key={markerKey}
+                            position={[m.lat, m.lon]}
+                            icon={L.divIcon({
+                                className: 'custom-marker',
+                                html: iconHtml,
+                                iconSize: [36, 36],
+                                iconAnchor: [18, 18]
+                            })}
+                        />
+                    );
+                })}
         </MapContainer>
     );
 }

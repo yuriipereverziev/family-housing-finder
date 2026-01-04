@@ -1,101 +1,65 @@
-import { getFamilyInfrastructure } from "../services/osm.service.js";
-import { calculateScore } from "../services/score.service.js";
+// server/controllers/district.controller.js
 import NodeCache from "node-cache";
+import District from "../models/District.js";
+import { calculateScore } from "../services/score.service.js";
+
 const cache = new NodeCache({ stdTTL: 3600 });
-import districtsGeoJSON from '../data/GeoJSON.json' with { type: 'json' };
 
-// 🔹 Функція нормалізації Polygon / MultiPolygon
-function normalizePolygon(geometry) {
-    if (!geometry) return null;
-
-    if (geometry.type === 'Polygon') {
-        return geometry.coordinates; // [ [ [lon, lat], ... ] ]
-    }
-
-    if (geometry.type === 'MultiPolygon') {
-        return geometry.coordinates[0]; // беремо перший полігон
-    }
-
-    return null;
-}
-
-
-
-// 🔹 districts з GeoJSON
-const districts = districtsGeoJSON.features
-
-    .map(feature => {
-        const polygon = normalizePolygon(feature.geometry);
-        if (!polygon) return null;
-
-        const name = feature.properties.Name;
-
-        // обчислюємо центр першого кільця
-        let sumLat = 0, sumLon = 0, count = 0;
-        polygon[0].forEach(([lon, lat]) => {
-            sumLat += lat;
-            sumLon += lon;
-            count++;
-        });
-
-        return {
-            name,
-            polygon, // 🔑 обов'язково передаємо
-            center: {
-                lat: sumLat / count,
-                lon: sumLon / count
-            }
-        };
-    })
-    .filter(Boolean);
-
-console.log("✅ districts loaded:", districts.map(d => d.name));
-
-
-// 🔹 Головна функція
 export const getDistrictSummary = async (req, res) => {
-    const city = req.params.city?.toLowerCase() || "ivano-frankivsk";
-    const cacheKey = `${city}_summary`;
+    try {
+        const city = (req.params.city || "ivano-frankivsk").toLowerCase();
+        console.log(`📍 Запит районів для міста: ${city}`);
 
-    // перевірка кешу
-    const cached = cache.get(cacheKey);
-    if (cached) return res.json(cached);
+        const cacheKey = `district_summary_${city}`;
 
-    let districtData = [];
-    let realEstate = { totalOffers: 456 }; // або await getRealEstateStats()
+        const cached = cache.get(cacheKey);
+        if (cached) {
+            console.log(`📦 Повернуто з кешу: ${cached.districts.length} районів`);
+            return res.json(cached);
+        }
 
-    if (city === "ivano-frankivsk") {
-        for (const d of districts) {
-            let infra = { schools: 0, kindergartens: 0, parks: 0, playgrounds: 0 };
-            try {
-                infra = await getFamilyInfrastructure(d);
-            } catch (e) {
-                console.error(`❌ getFamilyInfrastructure error for ${d.name}:`, e);
-            }
+        if (city !== "ivano-frankivsk") {
+            return res.status(404).json({ error: "Місто не підтримується" });
+        }
 
-            const score = calculateScore(infra);
+        const districtsFromDB = await District.find({ city })
+            .select('name lat lon score infrastructure polygon')
+            .lean();
 
-            districtData.push({
-                name: d.name,
-                lat: d.center.lat,
-                lon: d.center.lon,
-                score,
-                infrastructure: infra,
-                polygon: d.polygon // 🔑 Ключовий рядок для фронту
+        console.log(`✅ Знайдено в БД: ${districtsFromDB.length} районів`);
+
+        if (districtsFromDB.length === 0) {
+            return res.status(404).json({
+                error: "Райони не знайдені",
+                hint: "Запустіть: node scripts/seedDistricts.js"
             });
         }
+
+        const districtData = districtsFromDB.map(district => ({
+            name: district.name,
+            lat: district.lat,
+            lon: district.lon,
+            score: district.score || calculateScore(district.infrastructure),
+            infrastructure: district.infrastructure || {},
+            polygon: district.polygon || []
+        }));
+
+        const result = {
+            city: "Ivano-Frankivsk",
+            realEstate: { totalOffers: 456 },
+            districts: districtData
+        };
+
+        cache.set(cacheKey, result);
+        console.log(`✅ Відправлено ${districtData.length} районів`);
+
+        res.json(result);
+
+    } catch (error) {
+        console.error("❌ Помилка в getDistrictSummary:", error);
+        res.status(500).json({
+            error: "Внутрішня помилка сервера",
+            message: error.message
+        });
     }
-
-    console.log("CITY:", city);
-    console.log("DISTRICTS COUNT:", districtData.length);
-    console.log("FIRST DISTRICT:", districtData[0]);
-
-    const result = {
-        city: city.charAt(0).toUpperCase() + city.slice(1),
-        realEstate,
-        districts: districtData
-    };
-
-    cache.set(cacheKey, result);
-    res.json(result);
 };
