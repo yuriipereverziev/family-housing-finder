@@ -334,7 +334,7 @@ label {
 /* ===== Filters List ===== */
 .filters-list {
     display: flex;
-    flex-wrap: wrap;
+    /*flex-wrap: wrap;*/
     gap: 10px;
     margin: 16px 0;
 }
@@ -1003,11 +1003,11 @@ label {
     gap: 8px;
     margin: 20px 0 16px;
     padding-top: 5px;
-    /*padding-bottom: 20px;*/
+    padding-bottom: 15px;
     /*border-bottom: 2px solid #f0f0f0;*/
-    overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: #ddd transparent;
+    overflow-x: scroll;
+    scrollbar-width: auto;
+    /*scrollbar-color: #ddd transparent;*/
 }
 
 .categories-tabs::-webkit-scrollbar {
@@ -1025,7 +1025,7 @@ label {
     border: none;
     background: #f8f9fa;
     border-radius: 12px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     color: #495057;
     cursor: pointer;
@@ -1139,7 +1139,7 @@ label {
 /* Responsive */
 @media (max-width: 768px) {
     .filters-modal-categories {
-        max-width: 95%;
+        max-width: 90%;
         max-height: 90vh;
         margin: 20px 10px;
         padding: 20px;
@@ -1152,7 +1152,7 @@ label {
 
     .category-tab {
         padding: 10px 14px;
-        font-size: 13px;
+        /*font-size: 13px;*/
     }
 
     .filters-list {
@@ -1162,17 +1162,17 @@ label {
 
 @media (max-width: 480px) {
     .filters-modal-categories {
-        border-radius: 20px 20px 0 0;
+        /*border-radius: 20px 20px 0 0;*/
         max-height: 85vh;
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
+        /*bottom: 0;*/
+        /*left: 0;*/
+        /*right: 0;*/
         margin: 0;
     }
 
     .category-tab {
         padding: 8px 12px;
-        font-size: 12px;
+        /*font-size: 12px;*/
     }
 }
