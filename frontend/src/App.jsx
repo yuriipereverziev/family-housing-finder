@@ -1,11 +1,10 @@
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
 import Map from './components/Map';
 import { MOCK_DATA } from './data/mockData';
 import {
-    School, Baby, Trees, PlaySquare,Building2,MapPin,ChevronDown,
+    School, Baby, Trees, PlaySquare, Building2, MapPin, ChevronDown,
     Hospital, Pill, Stethoscope,
     Bus, Train, ShoppingCart, Store,
     Dumbbell, Film, ShieldCheck,
@@ -14,7 +13,7 @@ import {
 
 const API_BASE =
     process.env.NODE_ENV === 'development'
-        ? 'http://localhost:5023'
+        ? 'http://localhost:5030'
         : 'https://family-housing-finder-server.vercel.app';
 
 function App() {
@@ -30,8 +29,13 @@ function App() {
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [activeCategory, setActiveCategory] = useState('education');
 
+    const isLoadingRef = useRef(false);
 
-    // Конфігурація іконок для фільтрів
+    const mapData = useMemo(() =>
+            data ? { districts: [data] } : null,
+        [data]
+    );
+
     const FILTERS_CATEGORIES = {
         education: {
             label: '🎓 Освіта',
@@ -82,11 +86,12 @@ function App() {
         }
     };
 
-    // Слухач для оновлення кількості з Map
     useEffect(() => {
         const handleCountUpdate = (e) => {
-            console.log('📊 Оновлення підрахунку:', e.detail.counts);
-            setRealCounts(e.detail.counts);
+            setRealCounts(prev => ({
+                ...prev,
+                ...e.detail.counts
+            }));
         };
 
         window.addEventListener('updateCounts', handleCountUpdate);
@@ -106,7 +111,6 @@ function App() {
         return () => window.removeEventListener('showMarkers', handler);
     }, []);
 
-    // Функція для отримання значення (пріоритет реальним даним)
     const getInfraValue = (type) => {
         if (realCounts && realCounts[type] !== undefined) {
             return realCounts[type];
@@ -115,14 +119,16 @@ function App() {
     };
 
     useEffect(() => {
+        if (isLoadingRef.current) return;
+
         setRealCounts(null);
         setActiveTypes([]);
         window.dispatchEvent(new CustomEvent('resetMarkers'));
 
+        isLoadingRef.current = true;
         setLoading(true);
         setError(null);
 
-        // Спочатку намагаємося завантажити реальні дані
         axios
             .get(`${API_BASE}/api/districts/${selectedCity}`)
             .then((response) => {
@@ -133,30 +139,23 @@ function App() {
                 }
 
                 console.log('✅ Реальні дані завантажено:', dist.length, 'районів');
-                console.log('📍 Перший район має полігон:', !!dist[0]?.polygon);
-                console.log('Список назв:', dist.map(d => d.name));
 
                 setDistricts(dist);
 
-                // ✅ ВИПРАВЛЕНО: правильний вибір району
                 let matchedDistrict;
                 if (selectedDistrict && dist.find(d => d.name === selectedDistrict)) {
-                    // Якщо selectedDistrict існує і знайдений - використовуємо його
                     matchedDistrict = dist.find(d => d.name === selectedDistrict);
                 } else {
-                    // Інакше беремо перший район зі списку
                     matchedDistrict = dist[0];
                 }
-
-                console.log('🎯 Вибрано район:', matchedDistrict.name);
 
                 setSelectedDistrict(matchedDistrict.name);
                 setData(matchedDistrict);
                 setIsRealData(true);
                 setLoading(false);
+                isLoadingRef.current = false;
             })
             .catch((err) => {
-                // Якщо API недоступний - використовуємо мок-дані як fallback
                 console.warn('⚠️ API недоступний:', err.message);
                 console.log('📦 Використовуємо мок-дані як fallback');
 
@@ -174,9 +173,10 @@ function App() {
                     setError(`Райони для міста ${selectedCity} в розробці`);
                     setLoading(false);
                 }
-            });
-    }, [selectedCity]); // ⬅️ Тільки selectedCity у залежностях
 
+                isLoadingRef.current = false;
+            });
+    }, [selectedCity]);
 
     const handleDistrictChange = (e) => {
         const name = e.target.value;
@@ -248,7 +248,6 @@ function App() {
                 </div>
 
                 <div className="nav-controls">
-                    {/* Місто */}
                     <div className="select-group">
                         <div className="select-icon">
                             <MapPin size={18} />
@@ -268,7 +267,6 @@ function App() {
                         <ChevronDown size={16} className="select-arrow" />
                     </div>
 
-                    {/* Район */}
                     <div className="select-group">
                         <div className="select-icon">
                             <Building2 size={18} />
@@ -314,7 +312,6 @@ function App() {
                         <ChevronDown size={16} className="select-arrow" />
                     </div>
 
-                    {/* Фільтри */}
                     <button
                         className="filters-btn-modern"
                         onClick={() => setFiltersOpen(true)}
@@ -328,7 +325,6 @@ function App() {
                 </div>
             </nav>
 
-            {/* МОДАЛЬНЕ ВІКНО З КАТЕГОРІЯМИ */}
             {filtersOpen && (
                 <div className="filters-overlay" onClick={() => setFiltersOpen(false)}>
                     <div
@@ -346,7 +342,6 @@ function App() {
                             </button>
                         </div>
 
-                        {/* Вкладки категорій */}
                         <div className="categories-tabs">
                             {Object.entries(FILTERS_CATEGORIES).map(([key, category]) => {
                                 const isActive = activeCategory === key;
@@ -370,7 +365,6 @@ function App() {
                             })}
                         </div>
 
-                        {/* Фільтри активної категорії */}
                         <div className="filters-list">
                             {FILTERS_CATEGORIES[activeCategory].items.map(({ type, label, Icon, color }) => {
                                 const checked = activeTypes.includes(type);
@@ -442,7 +436,7 @@ function App() {
                 </div>
             )}
 
-            <Map data={{ districts: [data] }} selectedDistrict={data} />
+            {mapData && <Map data={mapData} city={selectedCity} />}
         </div>
     );
 }
