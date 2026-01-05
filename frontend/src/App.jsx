@@ -260,9 +260,9 @@ function App() {
                             aria-label="Виберіть місто"
                         >
                             <option value="ivano-frankivsk">Івано-Франківськ</option>
-                            <option value="lviv">Львів</option>
-                            <option value="kyiv">Київ</option>
-                            <option value="odesa">Одеса</option>
+                            {/*<option value="lviv">Львів</option>*/}
+                            {/*<option value="kyiv">Київ</option>*/}
+                            {/*<option value="odesa">Одеса</option>*/}
                         </select>
                         <ChevronDown size={16} className="select-arrow" />
                     </div>

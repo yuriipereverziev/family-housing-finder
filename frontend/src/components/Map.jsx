@@ -291,7 +291,7 @@ function Map({ data, city = 'ivano-frankivsk' }) {
         <MapContainer
             key={currentDistrict?.name} // ✅ ДОДАНО: змушує MapContainer перестворюватися при зміні району
             center={mapCenter}
-            zoom={14}
+            zoom={15}
             style={{
                 height: '600px',
                 width: '100%',
@@ -302,7 +302,7 @@ function Map({ data, city = 'ivano-frankivsk' }) {
             zoomControl={true}
             preferCanvas={true}
         >
-            <ChangeMapView center={mapCenter} zoom={14} />
+            <ChangeMapView center={mapCenter} zoom={15} />
             <EnableGestureHandling text="Використовуйте Ctrl + скрол для зуму" />
 
             <TileLayer
