@@ -30,7 +30,7 @@ import connectDB from "./config/db.js";
 
 import districtRoutes from "./routes/district.routes.js";
 import infrastructureRoutes from "./routes/infrastructure.js";
-import riaRoutes from "./routes/ria.routes.js"; // ⬅️ НОВИЙ ІМПОРТ
+import listingsRoutes from "./routes/listings.routes.js"; // ⬅️ ДОДАЙТЕ
 
 dotenv.config();
 connectDB();
@@ -43,7 +43,8 @@ app.use(express.json());
 // Routes
 app.use("/api/districts", districtRoutes);
 app.use("/api/infrastructure", infrastructureRoutes);
-app.use("/api/realestate", riaRoutes); // ⬅️ НОВИЙ ROUTE
+app.use("/api/listings", listingsRoutes);
+
 
 // Health check
 app.get("/api/health", (req, res) => {

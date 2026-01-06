@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
-import { MapContainer, TileLayer, Polygon, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
     School, Baby, Trees, PlaySquare, Hospital, Pill, Stethoscope,
     Bus, Train, ShoppingCart, Store, Dumbbell, Film, ShieldCheck,
-    Coffee, Landmark, BookOpen
+    Coffee, Landmark, BookOpen, Home
 } from 'lucide-react';
 
 import EnableGestureHandling from './EnableGestureHandling';
@@ -80,6 +80,11 @@ function Map({ data, city = 'ivano-frankivsk' }) {
     const [activeTypes, setActiveTypes] = useState([]);
     const [markersData, setMarkersData] = useState({});
     const [counts, setCounts] = useState({});
+    const [listingMarkers, setListingMarkers] = useState([]);
+    const [listingStats, setListingStats] = useState(null);
+    const [listingTypes, setListingTypes] = useState(['sale', 'rent']);
+    const [listingError, setListingError] = useState(null);
+    const [listingLoading, setListingLoading] = useState(false);
 
     const cache = useRef({}).current;
     const isLoadingRef = useRef(false);
@@ -287,54 +292,256 @@ function Map({ data, city = 'ivano-frankivsk' }) {
         return icons;
     }, []);
 
-    return (
-        <MapContainer
-            key={currentDistrict?.name} // ✅ ДОДАНО: змушує MapContainer перестворюватися при зміні району
-            center={mapCenter}
-            zoom={15}
-            style={{
-                height: '600px',
-                width: '100%',
-                borderRadius: '16px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-                marginTop: '20px'
-            }}
-            zoomControl={true}
-            preferCanvas={true}
-        >
-            <ChangeMapView center={mapCenter} zoom={15} />
-            <EnableGestureHandling text="Використовуйте Ctrl + скрол для зуму" />
+    const listingIcons = useMemo(() => ({
+        sale: L.divIcon({
+            className: 'listing-marker',
+            html: `
+                <div style="
+                    width: 36px; height: 36px; background: #e74c3c; border-radius: 50%;
+                    display: flex; align-items: center; justify-content: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 3px solid white;
+                ">
+                    ${renderToStaticMarkup(<Home size={18} color="white" strokeWidth={2.5} />)}
+                </div>
+            `,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+        }),
+        rent: L.divIcon({
+            className: 'listing-marker',
+            html: `
+                <div style="
+                    width: 36px; height: 36px; background: #2ecc71; border-radius: 50%;
+                    display: flex; align-items: center; justify-content: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 3px solid white;
+                ">
+                    ${renderToStaticMarkup(<Home size={18} color="white" strokeWidth={2.5} />)}
+                </div>
+            `,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+        })
+    }), []);
 
-            <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; OpenStreetMap contributors'
-                updateWhenIdle={false}
-                updateWhenZooming={false}
-                keepBuffer={2}
-            />
+    // Завантаження оголошень для вибраного району
+    useEffect(() => {
+        if (!currentDistrict?.name) return;
 
-            {polygonPositions && polygonPositions.length > 0 && (
-                <DistrictPolygon
-                    positions={polygonPositions}
-                    score={currentDistrict?.score}
-                />
-            )}
+        let cancelled = false;
+        setListingMarkers([]);
+        setListingStats(null);
+        setListingError(null);
 
-            {allMarkers.map((m) => {
-                const icon = markerIcons[m.type];
-                if (!icon) return null;
-
-                const markerKey = `${m.type}-${m.lat.toFixed(6)}-${m.lon.toFixed(6)}`;
-
-                return (
-                    <Marker
-                        key={markerKey}
-                        position={[m.lat, m.lon]}
-                        icon={icon}
-                    />
+        const loadListings = async () => {
+            try {
+                setListingLoading(true);
+                const res = await fetch(
+                    `${API_BASE}/api/listings/${city}/${encodeURIComponent(currentDistrict.name)}`
                 );
-            })}
-        </MapContainer>
+
+                if (!res.ok) {
+                    throw new Error('Не вдалося отримати оголошення');
+                }
+
+                const json = await res.json();
+                if (cancelled) return;
+
+                const list = Array.isArray(json.listings) ? json.listings : [];
+                const prepared = list
+                    .filter((l) => l.lat != null && l.lon != null)
+                    .map((l) => ({ ...l, type: l.type || 'rent' }));
+
+                setListingMarkers(prepared);
+                setListingStats(json.stats || null);
+            } catch (err) {
+                if (cancelled) return;
+                setListingError(err.message || 'Помилка завантаження квартир');
+                setListingMarkers([]);
+                setListingStats(null);
+            } finally {
+                if (!cancelled) setListingLoading(false);
+            }
+        };
+
+        loadListings();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [city, currentDistrict?.name]);
+
+    const visibleListings = useMemo(
+        () => listingMarkers.filter((l) => listingTypes.includes(l.type)),
+        [listingMarkers, listingTypes]
+    );
+
+    const toggleListingType = (type) => {
+        setListingTypes((prev) =>
+            prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+        );
+    };
+
+    return (
+        <div style={{ position: 'relative' }}>
+            <MapContainer
+                key={currentDistrict?.name} // ✅ ДОДАНО: змушує MapContainer перестворюватися при зміні району
+                center={mapCenter}
+                zoom={15}
+                style={{
+                    height: '600px',
+                    width: '100%',
+                    borderRadius: '16px',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                    marginTop: '20px'
+                }}
+                zoomControl={true}
+                preferCanvas={true}
+            >
+                <ChangeMapView center={mapCenter} zoom={15} />
+                <EnableGestureHandling text="Використовуйте Ctrl + скрол для зуму" />
+
+                <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; OpenStreetMap contributors'
+                    updateWhenIdle={false}
+                    updateWhenZooming={false}
+                    keepBuffer={2}
+                />
+
+                {polygonPositions && polygonPositions.length > 0 && (
+                    <DistrictPolygon
+                        positions={polygonPositions}
+                        score={currentDistrict?.score}
+                    />
+                )}
+
+                {allMarkers.map((m) => {
+                    const icon = markerIcons[m.type];
+                    if (!icon) return null;
+
+                    const markerKey = `${m.type}-${m.lat.toFixed(6)}-${m.lon.toFixed(6)}`;
+
+                    return (
+                        <Marker
+                            key={markerKey}
+                            position={[m.lat, m.lon]}
+                            icon={icon}
+                        />
+                    );
+                })}
+
+                {visibleListings.map((listing) => {
+                    const icon = listingIcons[listing.type] || listingIcons.sale;
+                    const key = listing._id || `${listing.type}-${listing.lat}-${listing.lon}`;
+
+                    return (
+                        <Marker
+                            key={key}
+                            position={[listing.lat, listing.lon]}
+                            icon={icon}
+                        >
+                            <Popup>
+                                <div style={{ maxWidth: '240px' }}>
+                                    <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                                        {listing.title || 'Квартира'}
+                                    </div>
+                                    <div style={{ marginBottom: 4 }}>
+                                        {listing.type === 'sale' ? 'Продаж' : 'Оренда'} ·{' '}
+                                        {listing.price ? `$${listing.price}` : '—'}
+                                    </div>
+                                    <div style={{ fontSize: 14, color: '#555' }}>
+                                        {listing.rooms ? `${listing.rooms}-кімн · ` : ''}
+                                        {listing.area ? `${listing.area} м²` : ''}
+                                    </div>
+                                    {listing.externalUrl && (
+                                        <a
+                                            href={listing.externalUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ display: 'inline-block', marginTop: 8, color: '#3498db' }}
+                                        >
+                                            Відкрити оголошення
+                                        </a>
+                                    )}
+                                </div>
+                            </Popup>
+                        </Marker>
+                    );
+                })}
+            </MapContainer>
+
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 12,
+                    right: 12,
+                    display: 'flex',
+                    gap: 8,
+                    zIndex: 1000
+                }}
+            >
+                <button
+                    onClick={() => toggleListingType('sale')}
+                    style={{
+                        padding: '8px 12px',
+                        borderRadius: 12,
+                        border: '1px solid #e74c3c',
+                        background: listingTypes.includes('sale') ? '#e74c3c' : '#fff',
+                        color: listingTypes.includes('sale') ? '#fff' : '#e74c3c',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.12)'
+                    }}
+                >
+                    Продаж
+                </button>
+                <button
+                    onClick={() => toggleListingType('rent')}
+                    style={{
+                        padding: '8px 12px',
+                        borderRadius: 12,
+                        border: '1px solid #2ecc71',
+                        background: listingTypes.includes('rent') ? '#2ecc71' : '#fff',
+                        color: listingTypes.includes('rent') ? '#fff' : '#2ecc71',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.12)'
+                    }}
+                >
+                    Оренда
+                </button>
+            </div>
+
+            <div
+                style={{
+                    position: 'absolute',
+                    bottom: 12,
+                    right: 12,
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    background: '#ffffff',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    minWidth: 220,
+                    zIndex: 1000,
+                    fontSize: 14,
+                    lineHeight: 1.4
+                }}
+            >
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Квартири в районі</div>
+                {listingLoading && <div>Завантаження…</div>}
+                {listingError && <div style={{ color: '#e74c3c' }}>{listingError}</div>}
+                {!listingLoading && !listingError && listingStats && (
+                    <>
+                        <div>Усього: {listingStats.total}</div>
+                        <div>Продаж: {listingStats.sale} (Ø ${listingStats.avgPriceSale || 0})</div>
+                        <div>Оренда: {listingStats.rent} (Ø ${listingStats.avgPriceRent || 0})</div>
+                    </>
+                )}
+                {!listingLoading && !listingError && !listingStats && (
+                    <div>Немає даних по району</div>
+                )}
+            </div>
+        </div>
     );
 }
 
