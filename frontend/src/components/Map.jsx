@@ -66,9 +66,9 @@ const DistrictPolygon = memo(({ positions, score }) => {
                 fillColor: `hsl(${(score || 3) * 15}, 70%, 60%)`,
                 fillOpacity: 0.45,
                 color: '#ffffff',
-                weight: 3,
+                weight: 2.5,
                 opacity: 0.9,
-                smoothFactor: 1.5
+                smoothFactor: 2
             }}
         />
     );
@@ -395,7 +395,20 @@ function Map({ data, city = 'ivano-frankivsk' }) {
                     marginTop: '20px'
                 }}
                 zoomControl={true}
-                preferCanvas={true}
+                // SVG-рендер вместо canvas даёт более плавный зум для полигонів
+                preferCanvas={false}
+                // Плавный зум колесиком
+                zoomSnap={0}
+                zoomDelta={0.3}
+                wheelDebounceTime={25}
+                wheelPxPerZoomLevel={200}
+                // Инерция при перетаскивании карты
+                inertia={true}
+                inertiaDeceleration={2500}
+                // Анимации
+                zoomAnimation={true}
+                zoomAnimationThreshold={8}
+                fadeAnimation={true}
             >
                 <ChangeMapView center={mapCenter} zoom={15} />
                 <EnableGestureHandling text="Використовуйте Ctrl + скрол для зуму" />
